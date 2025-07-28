@@ -8,6 +8,7 @@ import { JwtStrategy } from './jwt/jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
 import { UsersModule } from '../users/users.module';
 import { DatabaseModule } from '../database/database.module';
+import { LoggingModule } from '@/logging/logging.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { DatabaseModule } from '../database/database.module';
     }),
     UsersModule,
     DatabaseModule,
+    LoggingModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, RolesGuard],

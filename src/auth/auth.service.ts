@@ -4,6 +4,7 @@ import {
   ConflictException,
   Inject,
 } from '@nestjs/common';
+import { Logger } from 'winston';
 import { JwtService } from '@nestjs/jwt';
 import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -11,8 +12,8 @@ import * as bcrypt from 'bcrypt';
 import * as schema from '../database/schema';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
-import { ROLE_IDS, UserRole } from '../roles/roles.enum';
 import { DATABASE_CONNECTION } from '../database/database.module';
+import { ROLE_IDS, UserRole } from '@/modules/roles/roles.enum';
 
 const { users, roles } = schema;
 
@@ -22,9 +23,14 @@ export class AuthService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly jwtService: JwtService,
+    @Inject('winston')
+    private readonly logger: Logger,
   ) {}
 
   async register(registerDto: RegisterDto) {
+    this.logger.info(
+      `Attempting to register user with email: ${registerDto.email}`,
+    );
     // Check if user already exists
     const existingUser = await this.db
       .select()
@@ -33,6 +39,9 @@ export class AuthService {
       .limit(1);
 
     if (existingUser.length > 0) {
+      this.logger.warn(
+        `Registration failed: Email already exists - ${registerDto.email}`,
+      );
       throw new ConflictException('Email already exists');
     }
 
@@ -76,14 +85,19 @@ export class AuthService {
 
     const token = this.jwtService.sign(payload);
 
-    return {
+    const result = {
       user: userWithRole,
       access_token: token,
       message: 'Registration successful',
     };
+
+    this.logger.info(`User registered successfully: ${userWithRole.email}`);
+    return result;
   }
 
   async login(loginDto: LoginDto) {
+    this.logger.info(`Login attempt for user: ${loginDto.email}`);
+    this.logger.error('Login failed: User not found -', loginDto.email);
     // Find user with role
     const [user] = await this.db
       .select({
@@ -101,6 +115,7 @@ export class AuthService {
       .limit(1);
 
     if (!user) {
+      this.logger.warn(`Login failed: User not found - ${loginDto.email}`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -110,11 +125,17 @@ export class AuthService {
       user.password,
     );
     if (!isPasswordValid) {
+      this.logger.warn(
+        `Login failed: Invalid password for user - ${loginDto.email}`,
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Check if user is active
     if (!user.isActive) {
+      this.logger.warn(
+        `Login failed: Account is deactivated - ${loginDto.email}`,
+      );
       throw new UnauthorizedException('Account is deactivated');
     }
 
@@ -130,14 +151,18 @@ export class AuthService {
     // Remove password from response
     const { password, ...userWithoutPassword } = user;
 
-    return {
+    const result = {
       user: userWithoutPassword,
       access_token: token,
       message: 'Login successful',
     };
+
+    this.logger.info(`User logged in successfully: ${user.email}`);
+    return result;
   }
 
   async getProfile(userId: number) {
+    this.logger.debug(`Fetching profile for user ID: ${userId}`);
     const [user] = await this.db
       .select({
         id: users.id,
@@ -154,9 +179,11 @@ export class AuthService {
       .limit(1);
 
     if (!user) {
+      this.logger.warn(`Profile fetch failed: User not found - ID: ${userId}`);
       throw new UnauthorizedException('User not found');
     }
 
+    this.logger.debug(`Profile fetched successfully for user ID: ${userId}`);
     return { user };
   }
 }

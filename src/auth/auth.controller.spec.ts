@@ -27,14 +27,16 @@ describe('AuthController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [{
-        provide: AuthService,
-        useValue: {
-          register: jest.fn().mockResolvedValue(mockRegisterResponse),
-          login: jest.fn().mockResolvedValue(mockLoginResponse),
-          getProfile: jest.fn().mockResolvedValue(mockProfileResponse),
+      providers: [
+        {
+          provide: AuthService,
+          useValue: {
+            register: jest.fn().mockResolvedValue(mockRegisterResponse),
+            login: jest.fn().mockResolvedValue(mockLoginResponse),
+            getProfile: jest.fn().mockResolvedValue(mockProfileResponse),
+          },
         },
-      }],
+      ],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
@@ -55,7 +57,7 @@ describe('AuthController', () => {
 
     it('should register a new user', async () => {
       const result = await controller.register(registerDto);
-      
+
       expect(authService.register).toHaveBeenCalledWith(registerDto);
       expect(result).toEqual(mockRegisterResponse);
     });
@@ -69,7 +71,7 @@ describe('AuthController', () => {
 
     it('should login a user', async () => {
       const result = await controller.login(loginDto);
-      
+
       expect(authService.login).toHaveBeenCalledWith(loginDto);
       expect(result).toEqual(mockLoginResponse);
     });
@@ -82,8 +84,10 @@ describe('AuthController', () => {
 
     it('should get user profile', async () => {
       const result = await controller.getProfile(mockRequest);
-      
-      expect(authService.getProfile).toHaveBeenCalledWith(mockRequest.user.userId);
+
+      expect(authService.getProfile).toHaveBeenCalledWith(
+        mockRequest.user.userId,
+      );
       expect(result).toEqual(mockProfileResponse);
     });
   });
