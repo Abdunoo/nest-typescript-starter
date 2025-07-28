@@ -4,24 +4,31 @@ import {
   ConflictException,
   BadRequestException,
   Inject,
+  HttpStatus,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '@/database/database.module';
-import { eq, like, desc, asc, count } from 'drizzle-orm';
+import { aliasedTable, eq, sql } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
-import * as schema from '@/database/schema';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
-import type { QueryUsersDto } from './dto/query-users.dto';
 import { ROLE_IDS } from '../roles/roles.enum';
-
-const { users, roles } = schema;
+import { DbSchema, roles } from '@/database/schema';
+import {
+  users,
+  User,
+  UserWithRole,
+  UserListItem,
+} from '@/database/schema/users';
+import { PaginationDto } from '@/common/types/pagination.dto';
+import { PaginationResponse } from '@/common/types/pagination-response.type';
+import { filterColumns, generateOrderBy } from '@/common/utils/filter-columns';
 
 @Injectable()
 export class UsersService {
   constructor(
     @Inject(DATABASE_CONNECTION)
-    private readonly db: NodePgDatabase<typeof schema>,
+    private readonly db: NodePgDatabase<DbSchema>,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -79,56 +86,92 @@ export class UsersService {
     }
   }
 
-  async findAll(query: QueryUsersDto) {
+  async findAll() {
     try {
-      const {
-        page = 1,
-        limit = 10,
-        search,
-        sortBy = 'createdAt',
-        sortOrder = 'desc',
-      } = query;
-      const offset = (page - 1) * limit;
+      const users = await this.db.query.users.findMany({
+        with: {
+          role: true,
+        },
+      });
 
-      let whereCondition;
-      if (search) {
-        whereCondition = like(users.name, `%${search}%`);
-      }
+      return users;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch users');
+    }
+  }
 
-      const orderBy =
-        sortOrder === 'asc' ? asc(users[sortBy]) : desc(users[sortBy]);
+  async findAllList(
+    paginationDto: PaginationDto,
+  ): Promise<PaginationResponse<UserListItem>> {
+    try {
+      const { page, perPage, filters, joinOperator, sort } = paginationDto;
+      const offset = (page - 1) * perPage;
 
-      const [usersList, totalCount] = await Promise.all([
-        this.db
-          .select({
-            id: users.id,
-            name: users.name,
-            email: users.email,
-            isActive: users.isActive,
-            createdAt: users.createdAt,
-            updatedAt: users.updatedAt,
-            role: roles.name,
-          })
-          .from(users)
-          .innerJoin(roles, eq(users.roleId, roles.id))
-          .where(whereCondition)
-          .orderBy(orderBy)
-          .limit(limit)
-          .offset(offset),
+      // Aliased users for self-join as roles and warehouse
+      const roleAlias = aliasedTable(roles, 'role');
 
-        this.db.select({ count: count() }).from(users).where(whereCondition),
-      ]);
+      // Build where condition using filterColumns function
+      const whereCondition = filterColumns({
+        table: users,
+        filters,
+        joinOperator,
+        joinTables: { role: roleAlias },
+      });
+
+      // Build order by using generateOrderBy function
+      const orderBy = generateOrderBy({
+        table: users,
+        sort,
+        joinTables: { role: roleAlias },
+        defaultSortColumn: users.updatedAt,
+      });
+
+      // Get total count
+      const totalCountResult = await this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(users)
+        .leftJoin(roleAlias, eq(roleAlias.id, users.roleId))
+        .where(whereCondition);
+
+      const totalRows = Number(totalCountResult[0]?.count ?? 0);
+
+      // Get paginated results
+      const rows = await this.db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          roleId: users.roleId,
+          isActive: users.isActive,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+          role: {
+            id: roleAlias.id,
+            name: roleAlias.name,
+          },
+        })
+        .from(users)
+        .leftJoin(roleAlias, eq(roleAlias.id, users.roleId))
+        .where(whereCondition)
+        .limit(perPage)
+        .offset(offset)
+        .orderBy(...orderBy);
 
       return {
-        data: usersList,
-        meta: {
-          total: Number(totalCount[0].count),
-          page,
-          limit,
+        statusCode: HttpStatus.OK,
+        message: 'Berhasil mengambil daftar pengguna',
+        data: {
+          rows,
+          meta: {
+            page,
+            perPage,
+            totalRows,
+            totalPage: Math.ceil(totalRows / perPage),
+          },
         },
       };
     } catch (error) {
-      throw new BadRequestException('Failed to fetch users');
+      throw new BadRequestException('Failed to fetch list users');
     }
   }
 

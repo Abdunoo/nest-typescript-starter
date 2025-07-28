@@ -20,6 +20,7 @@ import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import type { QueryUsersDto } from './dto/query-users.dto';
 import { Permission } from '@/modules/permissions/permissions.enum';
+import { PaginationDto } from '@/common/types/pagination.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -36,8 +37,15 @@ export class UsersController {
   @Get()
   @RequirePermissions(Permission.USER_READ)
   @HttpCode(HttpStatus.OK)
-  async findAll(@Query() query: QueryUsersDto) {
-    return this.usersService.findAll(query);
+  async findAll() {
+    return this.usersService.findAll();
+  }
+
+  @Post('list')
+  @RequirePermissions(Permission.USER_READ)
+  @HttpCode(HttpStatus.OK)
+  async list(@Body() paginationDto: PaginationDto) {
+    return this.usersService.findAllList(paginationDto);
   }
 
   @Get(':id')

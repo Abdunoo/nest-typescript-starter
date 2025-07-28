@@ -10,21 +10,21 @@ import { JwtService } from '@nestjs/jwt';
 import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as bcrypt from 'bcrypt';
-import * as schema from '../database/schema';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { ROLE_IDS, UserRole } from '@/modules/roles/roles.enum';
 import { ConfigService } from '@nestjs/config';
-
-const { users, roles, refreshTokens } = schema;
+import { DbSchema } from '@/database/schema';
+import { users } from '@/database/schema/users';
+import { refreshTokens } from '@/database/schema/refresh-tokens';
 
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(DATABASE_CONNECTION)
-    private readonly db: NodePgDatabase<typeof schema>,
+    private readonly db: NodePgDatabase<DbSchema>,
     private readonly jwtService: JwtService,
     @Inject('winston')
     private readonly logger: Logger,
