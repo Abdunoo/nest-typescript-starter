@@ -74,7 +74,7 @@ npm run db:studio
 
 ```env
 # Server
-PORT=3000
+PORT=3001
 NODE_ENV=development
 
 # Database
@@ -108,7 +108,7 @@ export const users = pgTable('users', {
 The API documentation is automatically generated using Swagger/OpenAPI. Once the server is running, you can access it at:
 
 ```
-http://localhost:3000/api/docs
+http://localhost:3001/api/docs
 ```
 
 ### Project Structure

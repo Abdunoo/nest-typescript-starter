@@ -5,10 +5,10 @@ import {
   Inject,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { DATABASE_CONNECTION } from '../database/database.module';
+import { DATABASE_CONNECTION } from '@/database/database.module';
 import { eq, like, desc, asc, count } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
-import * as schema from '../database/schema';
+import * as schema from '@/database/schema';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import type { QueryUsersDto } from './dto/query-users.dto';

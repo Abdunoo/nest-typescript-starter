@@ -14,8 +14,9 @@ import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { ROLE_IDS, UserRole } from '@/modules/roles/roles.enum';
+import { ConfigService } from '@nestjs/config';
 
-const { users, roles } = schema;
+const { users, roles, refreshTokens } = schema;
 
 @Injectable()
 export class AuthService {
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @Inject('winston')
     private readonly logger: Logger,
+    private readonly configService: ConfigService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -83,11 +85,15 @@ export class AuthService {
       role: userWithRole.role,
     };
 
-    const token = this.jwtService.sign(payload);
+    const [accessToken, refreshToken] = await Promise.all([
+      this.generateAccessToken(payload),
+      this.generateRefreshToken(payload.sub),
+    ]);
 
     const result = {
       user: userWithRole,
-      access_token: token,
+      access_token: accessToken,
+      refresh_token: refreshToken,
       message: 'Registration successful',
     };
 
@@ -97,7 +103,6 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
     this.logger.info(`Login attempt for user: ${loginDto.email}`);
-    this.logger.error('Login failed: User not found -', loginDto.email);
     // Find user with role
     const [user] = await this.db
       .select({
@@ -146,19 +151,113 @@ export class AuthService {
       role: user.role,
     };
 
-    const token = this.jwtService.sign(payload);
+    const [accessToken, refreshToken] = await Promise.all([
+      this.generateAccessToken(payload),
+      this.generateRefreshToken(payload.sub),
+    ]);
 
     // Remove password from response
     const { password, ...userWithoutPassword } = user;
 
     const result = {
       user: userWithoutPassword,
-      access_token: token,
+      access_token: accessToken,
+      refresh_token: refreshToken,
       message: 'Login successful',
     };
 
     this.logger.info(`User logged in successfully: ${user.email}`);
     return result;
+  }
+
+  private async generateAccessToken(payload: {
+    sub: number;
+    email: string;
+    role: string;
+  }) {
+    return this.jwtService.sign(payload, {
+      secret: this.configService.get('JWT_SECRET'),
+      expiresIn: this.configService.get('JWT_EXPIRES_IN'),
+    });
+  }
+
+  private async generateRefreshToken(userId: number) {
+    const expiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN');
+    const refreshToken = this.jwtService.sign(
+      { sub: userId },
+      {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+        expiresIn,
+      },
+    );
+
+    const expiresInNumber = parseInt(
+      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN'),
+    );
+    const expiresAt = new Date();
+    expiresAt.setTime(expiresAt.getTime() + expiresInNumber);
+
+    await this.db.insert(refreshTokens).values({
+      token: refreshToken,
+      userId,
+      expiresAt,
+    });
+
+    return refreshToken;
+  }
+
+  async refreshToken(token: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+
+      const storedToken = await this.db
+        .select()
+        .from(refreshTokens)
+        .where(eq(refreshTokens.token, token))
+        .limit(1);
+
+      if (!storedToken.length) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const [userWithRole] = await this.db
+        .select({
+          id: users.id,
+          email: users.email,
+          role: roles.name,
+        })
+        .from(users)
+        .innerJoin(roles, eq(users.roleId, roles.id))
+        .where(eq(users.id, payload.sub));
+
+      if (!userWithRole) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      // Delete old refresh token
+      await this.db.delete(refreshTokens).where(eq(refreshTokens.token, token));
+
+      // Generate new tokens
+      const newPayload = {
+        sub: userWithRole.id,
+        email: userWithRole.email,
+        role: userWithRole.role,
+      };
+
+      const [accessToken, refreshToken] = await Promise.all([
+        this.generateAccessToken(newPayload),
+        this.generateRefreshToken(userWithRole.id),
+      ]);
+
+      return {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
   }
 
   async getProfile(userId: number) {

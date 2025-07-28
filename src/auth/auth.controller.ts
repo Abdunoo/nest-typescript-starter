@@ -33,6 +33,12 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refreshToken(@Body('refresh_token') token: string) {
+    return this.authService.refreshToken(token);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   @HttpCode(HttpStatus.OK)

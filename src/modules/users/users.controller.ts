@@ -13,13 +13,13 @@ import {
   Put,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { UserRole } from '../roles/roles.enum';
+import { JwtAuthGuard } from '@/auth/jwt/jwt.guard';
+import { RolesGuard } from '@/auth/guards/roles.guard';
+import { Roles } from '@/auth/decorators/roles.decorator';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import type { QueryUsersDto } from './dto/query-users.dto';
+import { UserRole } from '../roles/roles.enum';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
