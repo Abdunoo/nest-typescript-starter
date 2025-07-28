@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt/jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
 import { UsersModule } from '@/modules/users/users.module';
 import { DatabaseModule } from '@/database/database.module';
 import { LoggingModule } from '@/logging/logging.module';
@@ -25,7 +26,7 @@ import { LoggingModule } from '@/logging/logging.module';
     LoggingModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, RolesGuard],
+  providers: [AuthService, JwtStrategy, RolesGuard, PermissionsGuard],
   exports: [AuthService],
 })
 export class AuthModule {}
