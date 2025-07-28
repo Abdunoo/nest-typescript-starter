@@ -37,13 +37,11 @@ export class AuthService {
         `Attempting to register user with email: ${registerDto.email}`,
       );
       // Check if user already exists
-      const existingUser = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.email, registerDto.email))
-        .limit(1);
+      const existingUser = await this.db.query.users.findFirst({
+        where: eq(users.email, registerDto.email),
+      });
 
-      if (existingUser.length > 0) {
+      if (existingUser) {
         this.logger.warn(
           `Registration failed: Email already exists - ${registerDto.email}`,
         );
@@ -68,18 +66,12 @@ export class AuthService {
         .returning();
 
       // Get user with role
-      const [userWithRole] = await this.db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          isActive: users.isActive,
-          createdAt: users.createdAt,
-          role: roles.name,
-        })
-        .from(users)
-        .innerJoin(roles, eq(users.roleId, roles.id))
-        .where(eq(users.id, newUser.id));
+      const userWithRole = await this.db.query.users.findFirst({
+        with: {
+          role: true,
+        },
+        where: eq(users.id, newUser.id),
+      });
 
       if (!userWithRole) {
         throw new BadRequestException('Failed to create user');
@@ -89,7 +81,7 @@ export class AuthService {
       const payload = {
         sub: userWithRole.id,
         email: userWithRole.email,
-        role: userWithRole.role,
+        role: userWithRole.role.name,
       };
 
       const [accessToken, refreshToken] = await Promise.all([
@@ -120,20 +112,12 @@ export class AuthService {
     try {
       this.logger.info(`Login attempt for user: ${loginDto.email}`);
       // Find user with role
-      const [user] = await this.db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          password: users.password,
-          isActive: users.isActive,
-          createdAt: users.createdAt,
-          role: roles.name,
-        })
-        .from(users)
-        .innerJoin(roles, eq(users.roleId, roles.id))
-        .where(eq(users.email, loginDto.email))
-        .limit(1);
+      const user = await this.db.query.users.findFirst({
+        with: {
+          role: true,
+        },
+        where: eq(users.email, loginDto.email),
+      });
 
       if (!user) {
         this.logger.warn(`Login failed: User not found - ${loginDto.email}`);
@@ -164,7 +148,7 @@ export class AuthService {
       const payload = {
         sub: user.id,
         email: user.email,
-        role: user.role,
+        role: user.role.name,
       };
 
       const [accessToken, refreshToken] = await Promise.all([
@@ -212,14 +196,16 @@ export class AuthService {
 
   private async generateRefreshToken(userId: number) {
     try {
-      const expiresIn = this.configService.get<string>(
-        'JWT_REFRESH_EXPIRES_IN',
-      );
-      const refreshToken = this.jwtService.sign(
-        { sub: userId },
+      // Delete any existing refresh tokens for this user
+      await this.db
+        .delete(refreshTokens)
+        .where(eq(refreshTokens.userId, userId));
+
+      const refreshToken = await this.jwtService.signAsync(
+        { userId },
         {
           secret: this.configService.get('JWT_REFRESH_SECRET'),
-          expiresIn,
+          expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN'),
         },
       );
 
@@ -250,25 +236,20 @@ export class AuthService {
         secret: this.configService.get('JWT_REFRESH_SECRET'),
       });
 
-      const storedToken = await this.db
-        .select()
-        .from(refreshTokens)
-        .where(eq(refreshTokens.token, token))
-        .limit(1);
+      const storedToken = await this.db.query.refreshTokens.findFirst({
+        where: eq(refreshTokens.token, token),
+      });
 
-      if (!storedToken.length) {
+      if (!storedToken) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const [userWithRole] = await this.db
-        .select({
-          id: users.id,
-          email: users.email,
-          role: roles.name,
-        })
-        .from(users)
-        .innerJoin(roles, eq(users.roleId, roles.id))
-        .where(eq(users.id, payload.sub));
+      const userWithRole = await this.db.query.users.findFirst({
+        with: {
+          role: true,
+        },
+        where: eq(users.id, payload.sub),
+      });
 
       if (!userWithRole) {
         throw new UnauthorizedException('User not found');
@@ -281,7 +262,7 @@ export class AuthService {
       const newPayload = {
         sub: userWithRole.id,
         email: userWithRole.email,
-        role: userWithRole.role,
+        role: userWithRole.role.name,
       };
 
       const [accessToken, refreshToken] = await Promise.all([
@@ -304,20 +285,12 @@ export class AuthService {
   async getProfile(userId: number) {
     try {
       this.logger.debug(`Fetching profile for user ID: ${userId}`);
-      const [user] = await this.db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          isActive: users.isActive,
-          createdAt: users.createdAt,
-          updatedAt: users.updatedAt,
-          role: roles.name,
-        })
-        .from(users)
-        .innerJoin(roles, eq(users.roleId, roles.id))
-        .where(eq(users.id, userId))
-        .limit(1);
+      const user = await this.db.query.users.findFirst({
+        with: {
+          role: true,
+        },
+        where: eq(users.id, userId),
+      });
 
       if (!user) {
         this.logger.warn(
@@ -341,11 +314,12 @@ export class AuthService {
       this.logger.debug(`Updating profile for user ID: ${userId}`);
 
       // Get current user with password
-      const [currentUser] = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
+      const currentUser = await this.db.query.users.findFirst({
+        with: {
+          role: true,
+        },
+        where: eq(users.id, userId),
+      });
 
       if (!currentUser) {
         this.logger.warn(
@@ -359,13 +333,11 @@ export class AuthService {
         updateProfileDto.email &&
         updateProfileDto.email !== currentUser.email
       ) {
-        const existingUser = await this.db
-          .select()
-          .from(users)
-          .where(eq(users.email, updateProfileDto.email))
-          .limit(1);
+        const existingUser = await this.db.query.users.findFirst({
+          where: eq(users.email, updateProfileDto.email),
+        });
 
-        if (existingUser.length > 0) {
+        if (existingUser) {
           throw new ConflictException('Email already exists');
         }
       }

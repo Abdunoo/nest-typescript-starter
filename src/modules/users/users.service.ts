@@ -56,19 +56,12 @@ export class UsersService {
         .returning();
 
       // Get user with role
-      const [userWithRole] = await this.db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          isActive: users.isActive,
-          createdAt: users.createdAt,
-          updatedAt: users.updatedAt,
-          role: roles.name,
-        })
-        .from(users)
-        .innerJoin(roles, eq(users.roleId, roles.id))
-        .where(eq(users.id, newUser.id));
+      const userWithRole = await this.db.query.users.findFirst({
+        where: eq(users.id, newUser.id),
+        with: {
+          role: true,
+        },
+      });
 
       if (!userWithRole) {
         throw new BadRequestException('Failed to create user');
@@ -141,19 +134,12 @@ export class UsersService {
 
   async findOne(id: number) {
     try {
-      const [user] = await this.db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          isActive: users.isActive,
-          createdAt: users.createdAt,
-          updatedAt: users.updatedAt,
-          role: roles.name,
-        })
-        .from(users)
-        .innerJoin(roles, eq(users.roleId, roles.id))
-        .where(eq(users.id, id));
+      const user = await this.db.query.users.findFirst({
+        where: eq(users.id, id),
+        with: {
+          role: true,
+        },
+      });
 
       if (!user) {
         throw new NotFoundException(`User with ID ${id} not found`);
@@ -170,16 +156,12 @@ export class UsersService {
 
   async update(id: number, updateUserDto: UpdateUserDto) {
     try {
-      const existingUser = await this.findOne(id);
-
       if (updateUserDto.email) {
-        const userWithEmail = await this.db
-          .select()
-          .from(users)
-          .where(eq(users.email, updateUserDto.email))
-          .limit(1);
+        const userWithEmail = await this.db.query.users.findFirst({
+          where: eq(users.email, updateUserDto.email),
+        });
 
-        if (userWithEmail.length > 0 && userWithEmail[0].id !== id) {
+        if (userWithEmail && userWithEmail.id !== id) {
           throw new ConflictException('Email already exists');
         }
       }
@@ -205,7 +187,7 @@ export class UsersService {
         throw new BadRequestException('Failed to update user');
       }
 
-      return this.findOne(id);
+      return updatedUser;
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -220,7 +202,16 @@ export class UsersService {
 
   async remove(id: number) {
     try {
-      const user = await this.findOne(id);
+      const user = await this.db.query.users.findFirst({
+        where: eq(users.id, id),
+        with: {
+          role: true,
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
 
       await this.db.delete(users).where(eq(users.id, id));
 

@@ -1,3 +1,8 @@
+/**
+ * Permission enum
+ *
+ * @enum {string}
+ */
 export enum Permission {
   // User permissions
   USER_CREATE = 'user:create',
@@ -16,7 +21,11 @@ export enum Permission {
   ROLE_DELETE = 'role:delete',
 }
 
-// Define role permissions mapping
+/**
+ * Role permissions mapping
+ *
+ * @type {Object}
+ */
 export const ROLE_PERMISSIONS = {
   admin: [
     Permission.USER_CREATE,

@@ -3,8 +3,14 @@ import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 import { AppModule } from './../src/app.module';
 
-describe('REST API (e2e)', () => {
+describe('Auth (e2e)', () => {
   let app: INestApplication;
+  const testUser = {
+    email: new Date().getTime().toString() + '@test.com',
+    password: 'Test123!',
+    name: 'Test User',
+  };
+  let accessToken: string;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
@@ -19,74 +25,49 @@ describe('REST API (e2e)', () => {
     await app.close();
   });
 
-  // Base API test
-  // describe('App', () => {
-  //   it('/ (GET)', () => {
-  //     return request(app.getHttpServer())
-  //       .get('/')
-  //       .expect(200)
-  //       .expect('Hello World!');
-  //   });
-  // });
+  it('should register a new user', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(testUser)
+      .expect(200);
 
-  // Auth endpoints
-  describe('Auth', () => {
-    const testUser = {
-      email: new Date().getTime().toString() + '@test.com',
-      password: 'Test123!',
-      name: 'Test User',
-    };
-
-    it('/auth/register (POST)', () => {
-      return request(app.getHttpServer())
-        .post('/auth/register')
-        .send(testUser)
-        .expect(200)
-        .expect((res) => {
-          expect(res.body).toHaveProperty('user.id');
-          expect(res.body).toHaveProperty('user.email', testUser.email);
-          expect(res.body).toHaveProperty('user.name', testUser.name);
-        });
+    expect(response.body.user).toMatchObject({
+      email: testUser.email,
+      name: testUser.name,
+      role: { name: 'teacher' },
     });
+    expect(response.body).toHaveProperty('access_token');
+    accessToken = response.body.access_token;
+  });
 
-    it('/auth/login (POST)', () => {
-      return request(app.getHttpServer())
-        .post('/auth/login')
-        .send({
-          email: testUser.email,
-          password: testUser.password,
-        })
-        .expect(200)
-        .expect((res) => {
-          expect(res.body).toHaveProperty('access_token');
-        });
+  it('should access protected profile route', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/auth/profile')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(response.body.user).toMatchObject({
+      email: testUser.email,
+      name: testUser.name,
+      role: { name: 'teacher' },
     });
+  });
 
-    describe('Protected Routes', () => {
-      let authToken: string;
+  it('should login with registered user', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: testUser.email,
+        password: testUser.password,
+      })
+      .expect(200);
 
-      beforeEach(async () => {
-        const response = await request(app.getHttpServer())
-          .post('/auth/login')
-          .send({
-            email: testUser.email,
-            password: testUser.password,
-          });
-
-        authToken = response.body.access_token;
-      });
-
-      it('/auth/profile (GET)', () => {
-        return request(app.getHttpServer())
-          .get('/auth/profile')
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(200)
-          .expect((res) => {
-            expect(res.body).toHaveProperty('user.id');
-            expect(res.body).toHaveProperty('user.email', testUser.email);
-            expect(res.body).toHaveProperty('user.name', testUser.name);
-          });
-      });
+    expect(response.body.user).toMatchObject({
+      email: testUser.email,
+      name: testUser.name,
+      role: { name: 'teacher' },
     });
+    expect(response.body).toHaveProperty('access_token');
+    accessToken = response.body.access_token;
   });
 });
