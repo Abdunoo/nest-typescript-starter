@@ -94,7 +94,11 @@ export class UsersService {
         },
       });
 
-      return users;
+      return {
+        statusCode: HttpStatus.OK,
+        message: 'Berhasil mengambil daftar pengguna',
+        data: users,
+      };
     } catch (error) {
       throw new BadRequestException('Failed to fetch users');
     }

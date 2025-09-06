@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -23,6 +24,9 @@ async function bootstrap() {
     origin: process.env.FRONTEND_URL,
     credentials: true,
   });
+
+  // Cookie parser for reading JWT and CSRF cookies
+  app.use(cookieParser());
 
   // Swagger configuration
   const config = new DocumentBuilder()

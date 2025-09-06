@@ -22,10 +22,10 @@ export interface PaginationDto {
   sort?: Sort[];
 }
 
-export interface PaginationParams {
-  page: number;
-  perPage: number;
-  filters?: Filter[];
-  joinOperator?: 'and' | 'or';
-  sort?: Sort[];
-}
+// export interface PaginationParams {
+//   page: number;
+//   perPage: number;
+//   filters?: Filter[];
+//   joinOperator?: 'and' | 'or';
+//   sort?: Sort[];
+// }

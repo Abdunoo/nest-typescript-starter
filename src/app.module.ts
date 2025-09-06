@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { LoggingModule } from './logging/logging.module';
+import { StudentsModule } from './modules/students/students.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { LoggingModule } from './logging/logging.module';
     DatabaseModule,
     AuthModule,
     UsersModule,
+    StudentsModule,
   ],
   providers: [
     {

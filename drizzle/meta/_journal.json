@@ -15,6 +15,20 @@
       "when": 1753674664543,
       "tag": "0001_bored_sage",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1756823169970,
+      "tag": "0002_curved_mariko_yashida",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1756831379444,
+      "tag": "0003_absent_jack_flag",
+      "breakpoints": true
     }
   ]
 }

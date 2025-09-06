@@ -248,7 +248,7 @@ export class AuthService {
         with: {
           role: true,
         },
-        where: eq(users.id, payload.sub),
+        where: eq(users.id, payload.userId),
       });
 
       if (!userWithRole) {
